@@ -1,5 +1,5 @@
 {
-  "name": "node-rtsp-streaming-server",
+  "name": "rtsp-streaming-server",
   "version": "1.0.0",
   "description": "",
   "main": "rtsp-server.js",
