@@ -1,13 +1,13 @@
 {
   "name": "rtsp-streaming-server",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.0.1",
+  "description": "Lightweight RTSP/RTP streaming media server written in Javascript",
   "main": "rtsp-server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Chris Wiggins <chris@wiggins.nz>",
   "license": "GPL-3.0",
   "dependencies": {
     "rtsp-server": "^1.2.2",
@@ -16,5 +16,9 @@
   },
   "engines": {
     "node": "^8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chriswiggins/rtsp-streaming-server.git"
   }
 }

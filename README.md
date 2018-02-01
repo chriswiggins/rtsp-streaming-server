@@ -1,4 +1,4 @@
-# node-rtsp-streaming-server
+# rtsp-streaming-server
 
 Lightweight RTSP/RTP streaming media server written in Javascript.
 
