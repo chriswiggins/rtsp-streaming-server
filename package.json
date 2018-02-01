@@ -1,0 +1,20 @@
+{
+  "name": "node-rtsp-streaming-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "rtsp-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "rtsp-server": "^1.2.2",
+    "uuid": "^3.2.1",
+    "winston": "^2.4.0"
+  },
+  "engines": {
+    "node": "^8.0.0"
+  }
+}
