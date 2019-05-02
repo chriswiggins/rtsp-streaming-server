@@ -12,19 +12,19 @@ Use this module to run an RTSP server in javascript. Common use case is for load
 
 Add the following to your script where you want to run the server:
 
-```javascript
+```typescript
 
-const StreamingServer = require('rtsp-streaming-server');
+import RtspServer from 'rtsp-streaming-server'
 
-const server = new StreamingServer({
+const server = new RtspServer({
 	serverPort: 5554,
 	clientPort: 6554,
 	rtpPortStart: 10000,
-	rtpPortCount: 1000
+	rtpPortCount: 10000
 });
 
 
-const run = async () => {
+async function run (): void {
 	try {
 		await server.start();
 	} catch (e) {

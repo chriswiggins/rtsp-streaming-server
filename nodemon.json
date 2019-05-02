@@ -1,0 +1,18 @@
+{
+  "env": {
+    "DEBUG": "@vgrid/*",
+    "DEBUG_COLORS": "yes",
+    "NODE_ENV": "development"
+  },
+  "exec": "babel-node --extensions '.ts' test/index.ts",
+  "ext": "ts",
+  "ignore": [
+    "__mocks__",
+    "__tests__"
+  ],
+  "watch": [
+    "src",
+    "test",
+    "./node_modules/@chriswiggins/soap/lib"
+  ]
+}

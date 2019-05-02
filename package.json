@@ -1,11 +1,18 @@
 {
   "name": "rtsp-streaming-server",
-  "version": "1.0.2",
+  "version": "2.0.0-rc1",
   "description": "Lightweight RTSP/RTP streaming media server written in Javascript",
-  "main": "rtsp-server.js",
+  "main": "build/rtsp-server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npm run type-check && npm run build:js",
+    "build:js": "babel src --out-dir build --extensions '.ts' --source-maps inline",
+    "coverage": "jest --coverage --env=node",
+    "lint": "tslint --project tsconfig.json",
+    "start": "nodemon",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "type-check": "tsc --noEmit"
   },
+  "files": ["build", "types"],
   "keywords": [],
   "author": "Chris Wiggins <chris@wiggins.nz>",
   "license": "GPL-3.0",
@@ -14,11 +21,27 @@
     "uuid": "^3.3.2",
     "winston": "^2.4.4"
   },
+  "devDependencies": {
+    "@babel/cli": "^7.4.3",
+    "@babel/core": "^7.4.3",
+    "@babel/node": "^7.2.2",
+    "@babel/preset-env": "^7.4.3",
+    "@babel/preset-typescript": "^7.3.3",
+    "@types/node": "^11.13.7",
+    "@types/uuid": "^3.4.4",
+    "lint-staged": "^8.1.5",
+    "nodemon": "^1.18.11",
+    "ts-node": "^8.1.0",
+    "tslint": "^5.16.0",
+    "tslint-config-standard": "^8.0.1",
+    "typescript": "^3.4.4"
+  },
   "engines": {
-    "node": "^8.0.0"
+    "node": "^10.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/chriswiggins/rtsp-streaming-server.git"
-  }
+  },
+  "types": "build/index.d.ts"
 }
