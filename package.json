@@ -1,6 +1,6 @@
 {
   "name": "rtsp-streaming-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lightweight RTSP/RTP streaming media server written in Javascript",
   "main": "rtsp-server.js",
   "scripts": {
@@ -11,8 +11,8 @@
   "license": "GPL-3.0",
   "dependencies": {
     "rtsp-server": "^1.2.2",
-    "uuid": "^3.2.1",
-    "winston": "^2.4.0"
+    "uuid": "^3.3.2",
+    "winston": "^2.4.4"
   },
   "engines": {
     "node": "^8.0.0"
