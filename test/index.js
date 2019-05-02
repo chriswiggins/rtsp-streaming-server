@@ -10,7 +10,7 @@ const server = new StreamingServer({
 
 const run = async () => {
 	try {
-		server.start();
+		await server.start();
 	} catch (e) {
 		console.error(e);
 	}
