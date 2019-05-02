@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 
+import { Client } from './Client';
 import { Mounts } from './Mounts';
 import { RtpUdp } from './RtpUdp';
 import { getMountInfo } from './utils';
@@ -7,7 +8,7 @@ import { getMountInfo } from './utils';
 export type RtspStream = {
   id: number; // Not a UUID, this is the streamId in the RTSP spec
   mount: Mount;
-  clients: any; // TODO
+  clients: { [clientId: string]: Client };
   listenerRtp?: RtpUdp;
   listenerRtcp?: RtpUdp;
   rtpStartPort: number;
@@ -107,9 +108,16 @@ export class Mount {
 
   close () {
     let ports = [];
+
     for (let id in this.streams) {
-      let stream = this.streams[id];
+      const stream = this.streams[id];
       if (stream) {
+        for (let id in stream.clients) {
+          const client = stream.clients[id];
+          console.log('Closing Client', client.id);
+          client.close();
+        }
+
         stream.listenerRtp && stream.listenerRtp.close();
         stream.listenerRtcp && stream.listenerRtcp.close();
       }

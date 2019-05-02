@@ -1,13 +1,16 @@
 
-import { ClientServer } from './lib/ClientServer';
+import { ClientServer, ClientServerHooksConfig } from './lib/ClientServer';
 import { Mounts } from './lib/Mounts';
-import { PublishServer } from './lib/PublishServer';
+import { PublishServer, PublishServerHooksConfig } from './lib/PublishServer';
 
 export interface RtspServerConfig {
   clientPort: number;
   rtpPortCount: number;
   rtpPortStart: number;
   serverPort: number;
+
+  publishServerHooks?: PublishServerHooksConfig;
+  clientServerHooks?: ClientServerHooksConfig;
 }
 
 export default class RtspServer {
@@ -21,9 +24,9 @@ export default class RtspServer {
       rtpPortStart: config.rtpPortStart
     });
 
-    this.PublishServer = new PublishServer(config.serverPort, this.Mounts);
+    this.PublishServer = new PublishServer(config.serverPort, this.Mounts, config.publishServerHooks);
 
-    this.ClientServer = new ClientServer(config.clientPort, this.Mounts);
+    this.ClientServer = new ClientServer(config.clientPort, this.Mounts, config.clientServerHooks);
   }
 
   async start (): Promise<void> {

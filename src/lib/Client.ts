@@ -136,7 +136,6 @@ export class Client {
    *
    */
   async close (): Promise<void> {
-    this.stream.clients[this.id] = null;
     delete this.stream.clients[this.id];
 
     return new Promise((resolve, reject) => {

@@ -1,23 +1,36 @@
+import { parse } from 'basic-auth';
 import { createServer, RtspRequest, RtspResponse, RtspServer } from 'rtsp-server';
 
 import { Mounts } from './Mounts';
+
+
+export interface PublishServerHooksConfig {
+  authentication?: (username: string, password: string) => Promise<boolean>;
+}
 
 /**
  *
  */
 export class PublishServer {
+  hooks: PublishServerHooksConfig;
   mounts: Mounts;
   rtspPort: number;
   server: RtspServer;
+
+  authenticatedHeader?: string;
 
   /**
    *
    * @param rtspPort
    * @param mounts
    */
-  constructor (rtspPort: number, mounts: Mounts) {
+  constructor (rtspPort: number, mounts: Mounts, hooks?: PublishServerHooksConfig) {
     this.rtspPort = rtspPort;
     this.mounts = mounts;
+
+    this.hooks = {
+      ...hooks
+    };
 
     this.server = createServer((req: RtspRequest, res: RtspResponse) => {
       switch (req.method) {
@@ -59,9 +72,6 @@ export class PublishServer {
    */
   optionsRequest (req: RtspRequest, res: RtspResponse) {
     res.setHeader('DESCRIBE SETUP ANNOUNCE RECORD', 'OPTIONS');
-    if (req.headers.session) {
-      console.log(req.headers);
-    }
     return res.end();
   }
 
@@ -70,14 +80,39 @@ export class PublishServer {
    * @param req
    * @param res
    */
-  announceRequest (req: RtspRequest, res: RtspResponse) {
+  async announceRequest (req: RtspRequest, res: RtspResponse) {
+    // Ask for authentication
+    if (this.hooks.authentication) {
+      if (!req.headers.authorization) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+        res.statusCode = 401;
+        return res.end();
+      } else {
+        const result = parse(req.headers.authorization);
+        if (!result) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+          res.statusCode = 401;
+          return res.end();
+        }
+
+        const allowed = await this.hooks.authentication(result.name, result.pass);
+        if (!allowed) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+          res.statusCode = 401;
+          return res.end();
+        }
+
+        this.authenticatedHeader = req.headers.authorization;
+      }
+    }
+
     let sdpBody = '';
     req.on('data', (buf) => {
       sdpBody += buf.toString();
     });
 
     req.on('end', () => {
-      const mount = this.mounts.getMount(req.uri);
+      let mount = this.mounts.getMount(req.uri);
 
       // If the mount already exists, reject
       if (mount) {
@@ -85,7 +120,8 @@ export class PublishServer {
         return res.end();
       }
 
-      this.mounts.addMount(req.uri, sdpBody);
+      mount = this.mounts.addMount(req.uri, sdpBody);
+      res.setHeader('Session', `${mount.id};timeout=30`);
 
       res.end();
     });
@@ -97,22 +133,25 @@ export class PublishServer {
    * @param res
    */
   setupRequest (req: RtspRequest, res: RtspResponse) {
+    // Authentication check
+    if (!this.checkAuthenticated(req, res)) {
+      return;
+    }
+
     const mount = this.mounts.getMount(req.uri);
+    if (!mount) {
+      res.statusCode = 404; // Unknown stream
+      return res.end();
+    }
+
     // TCP not supported (yet ;-))
     if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
       res.statusCode = 501; // Not Implemented
       return res.end();
     }
 
-    if (!mount) {
-      res.statusCode = 404; // Unknown stream
-      return res.end();
-    }
-
     const create = mount.createStream(req.uri);
-
     res.setHeader('Transport', `${req.headers.transport};server_port=${create.rtpStartPort}-${create.rtpEndPort}`);
-    res.setHeader('Session', `${mount.id};30`);
     res.end();
   }
 
@@ -122,6 +161,11 @@ export class PublishServer {
    * @param res
    */
   async recordRequest (req: RtspRequest, res: RtspResponse) {
+    // Authentication check
+    if (!this.checkAuthenticated(req, res)) {
+      return;
+    }
+
     let mount = this.mounts.getMount(req.uri);
 
     if (!mount || mount.id !== req.headers.session) {
@@ -149,7 +193,30 @@ export class PublishServer {
    * @param res
    */
   teardownRequest (req: RtspRequest, res: RtspResponse) {
+    // Authentication check
+    if (!this.checkAuthenticated(req, res)) {
+      return;
+    }
+
     this.mounts.deleteMount(req.uri);
     res.end();
+  }
+
+  /**
+   *
+   * @param req
+   * @param res
+   */
+  private checkAuthenticated (req: RtspRequest, res: RtspResponse): boolean {
+    if (this.hooks.authentication && this.authenticatedHeader) {
+      console.log('Checking auth headers match', req.headers);
+      if (req.headers.authorization !== this.authenticatedHeader) {
+        res.statusCode = 401;
+        res.end();
+        return false;
+      }
+    }
+
+    return true;
   }
 }

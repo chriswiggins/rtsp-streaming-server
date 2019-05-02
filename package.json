@@ -12,11 +12,14 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "type-check": "tsc --noEmit"
   },
-  "files": ["build", "types"],
+  "files": [
+    "build"
+  ],
   "keywords": [],
   "author": "Chris Wiggins <chris@wiggins.nz>",
   "license": "GPL-3.0",
   "dependencies": {
+    "basic-auth": "^2.0.1",
     "rtsp-server": "^1.2.2",
     "uuid": "^3.3.2",
     "winston": "^2.4.4"
@@ -27,6 +30,7 @@
     "@babel/node": "^7.2.2",
     "@babel/preset-env": "^7.4.3",
     "@babel/preset-typescript": "^7.3.3",
+    "@types/basic-auth": "^1.1.2",
     "@types/node": "^11.13.7",
     "@types/uuid": "^3.4.4",
     "lint-staged": "^8.1.5",

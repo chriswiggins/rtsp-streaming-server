@@ -1,9 +1,17 @@
 import RtspServer from '../src';
 
 const server = new RtspServer({
-  clientPort: 6554,
   rtpPortCount: 10000,
   rtpPortStart: 10000,
+
+  clientPort: 6554,
+  clientServerHooks: {
+    authentication: authHook
+  },
+
+  publishServerHooks: {
+    authentication: authHook
+  },
   serverPort: 5554
 });
 
@@ -13,6 +21,12 @@ async function run (): Promise<void> {
   } catch (e) {
     console.error(e);
   }
+}
+
+async function authHook (username: string, password: string): Promise<boolean> {
+  if (username === 'test' && password === 'test') return true;
+
+  return false;
 }
 
 run();
