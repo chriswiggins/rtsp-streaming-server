@@ -4,7 +4,9 @@ import { v4 as uuid } from 'uuid';
 
 import { Mount, RtspStream } from './Mount';
 import { Mounts } from './Mounts';
-import { getMountInfo, MountInfo } from './utils';
+import { getDebugger, getMountInfo, MountInfo } from './utils';
+
+const debug = getDebugger('Client');
 
 const clientPortRegex = /(?:client_port=)(\d*)-(\d*)/;
 
@@ -58,32 +60,6 @@ export class Client {
 
     this.rtpServer = createSocket('udp4');
     this.rtcpServer = createSocket('udp4');
-
-  }
-
-  /**
-   *
-   */
-  async listen (): Promise<void> {
-    return new Promise((resolve, reject) => {
-      function onError (err: Error) {
-        return reject(err);
-      }
-
-      this.rtpServer.on('error', onError);
-
-      this.rtpServer.bind(this.rtpServerPort, () => {
-        console.log(`Listener for Stream (${this.stream.id}) on path ${this.stream.mount.path} on port ${this.rtpServerPort} successful`);
-        this.rtpServer.removeListener('error', onError);
-
-        this.rtcpServer.on('error', onError);
-        this.rtcpServer.bind(this.rtcpServerPort, () => {
-          this.rtcpServer.removeListener('error', onError);
-
-          return resolve();
-        });
-      });
-    });
   }
 
   /**
@@ -106,7 +82,7 @@ export class Client {
           await this.rtcpServer.close();
         } catch (e) {
           // Ignore, dont care if couldnt close
-          console.log(e);
+          console.warn(e);
         }
 
         if (this.rtpServerPort) {
@@ -123,6 +99,14 @@ export class Client {
     if (portError) {
       return this.setup(req);
     }
+
+    debug(
+      '%s:%s Client set up for path %s, local ports (%s:%s) remote ports (%s:%s)',
+      req.socket.remoteAddress,req.socket.remotePort,
+      this.stream.mount.path,
+      this.rtpServerPort,this.rtcpServerPort,
+      this.remoteRtpPort,this.remoteRtcpPort
+    );
   }
 
   /**
@@ -130,6 +114,7 @@ export class Client {
    */
   play (): void {
     this.stream.clients[this.id] = this;
+    this.keepalive();
   }
 
   /**
@@ -146,6 +131,10 @@ export class Client {
             this.mounts.returnRtpPortToPool(this.rtpServerPort);
           }
 
+          if (this.keepaliveTimeout) {
+            clearTimeout(this.keepaliveTimeout);
+          }
+
           return resolve();
         });
       });
@@ -156,7 +145,7 @@ export class Client {
    *
    * @param buf
    */
-  send_rtp (buf: Buffer) {
+  sendRtp (buf: Buffer) {
     this.rtpServer.send(buf, this.remoteRtpPort, this.remoteAddress);
   }
 
@@ -164,7 +153,7 @@ export class Client {
    *
    * @param buf
    */
-  send_rtcp (buf: Buffer) {
+  sendRtcp (buf: Buffer) {
     this.rtcpServer.send(buf, this.remoteRtcpPort, this.remoteAddress);
   }
 
@@ -174,13 +163,37 @@ export class Client {
     }
 
     this.keepaliveTimeout = setTimeout(async () => {
-      console.log('Client timeout');
+      debug('%s client timeout, closing connection', this.id);
       try {
         await this.close();
       } catch (e) {
         // Ignore
       }
-    }, 6e4); // 60 seconds
+    }, 3e4); // 30 seconds
+  }
+
+  /**
+   *
+   */
+  private async listen (): Promise<void> {
+    return new Promise((resolve, reject) => {
+      function onError (err: Error) {
+        return reject(err);
+      }
+
+      this.rtpServer.on('error', onError);
+
+      this.rtpServer.bind(this.rtpServerPort, () => {
+        this.rtpServer.removeListener('error', onError);
+
+        this.rtcpServer.on('error', onError);
+        this.rtcpServer.bind(this.rtcpServerPort, () => {
+          this.rtcpServer.removeListener('error', onError);
+
+          return resolve();
+        });
+      });
+    });
   }
 
   private setupServerPorts (): void {

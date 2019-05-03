@@ -1,5 +1,7 @@
 import { Mount } from './Mount';
-import { getMountInfo } from './utils';
+import { getDebugger, getMountInfo } from './utils';
+
+const debug = getDebugger('Mounts');
 
 export interface MountsConfig {
   rtpPortCount: number;
@@ -26,21 +28,26 @@ export class Mounts {
     return this.mounts[info.path];
   }
 
-  addMount (uri: string, sdp: string) {
+  addMount (uri: string, sdp: string): Mount {
+    debug('Adding mount with path %s and SDP %O', uri, sdp);
     const info = getMountInfo(uri);
-    this.mounts[info.path] = new Mount(this, info.path, sdp);
-    return this.mounts[info.path];
+    const mount = new Mount(this, info.path, sdp);
+    this.mounts[info.path] = mount;
+    return mount;
   }
 
   getNextRtpPort (): number | undefined {
+    debug('%d rtp ports remaining', this.rtpPorts.length - 1);
     return this.rtpPorts.shift();
   }
 
   returnRtpPortToPool (port: number): void {
+    debug('%d rtp ports remaining', this.rtpPorts.length + 1);
     this.rtpPorts.push(port);
   }
 
   deleteMount (uri: string): boolean {
+    debug('Removing mount with path %s', uri);
     let info = getMountInfo(uri);
 
     const mount = this.mounts[info.path];

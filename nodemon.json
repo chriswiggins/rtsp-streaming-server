@@ -4,7 +4,7 @@
     "DEBUG_COLORS": "yes",
     "NODE_ENV": "development"
   },
-  "exec": "babel-node --extensions '.ts' test/index.ts",
+  "exec": "DEBUG=rtsp-streaming-server:* babel-node --extensions '.ts' test/index.ts",
   "ext": "ts",
   "ignore": [
     "__mocks__",

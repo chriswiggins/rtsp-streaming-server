@@ -1,6 +1,9 @@
 import { createSocket, Socket } from 'dgram';
 
 import { RtspStream } from './Mount';
+import { getDebugger } from './utils';
+
+const debug = getDebugger('RtpUdp');
 
 export class RtpUdp {
   port: number;
@@ -19,7 +22,11 @@ export class RtpUdp {
         let client = this.stream.clients[id];
 
         // Differenciate rtp and rtcp so that the client object knows which port to send to
-        client[`send_${this.type}`](buf);
+        if (this.type === 'rtcp') {
+          client.sendRtcp(buf);
+        } else {
+          client.sendRtp(buf);
+        }
       }
     });
   }
@@ -33,7 +40,7 @@ export class RtpUdp {
       this.server.on('error', onError);
 
       this.server.bind(this.port, () => {
-        console.log(`Listener for Stream(${this.stream.id}) on path ${this.stream.mount.path} on port ${this.port} successful`);
+        debug('Opened %s listener for stream %s on path %s', this.type.toUpperCase(), this.stream.id, this.stream.mount.path);
         this.server.removeListener('error', onError);
         return resolve();
       });
@@ -42,6 +49,7 @@ export class RtpUdp {
 
   async close () {
     return new Promise((resolve, reject) => {
+      debug('Closing UDP listeners for stream %s', this.stream.id);
       this.server.close(() => {
         return resolve();
       });

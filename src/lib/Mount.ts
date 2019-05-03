@@ -3,7 +3,9 @@ import { v4 as uuid } from 'uuid';
 import { Client } from './Client';
 import { Mounts } from './Mounts';
 import { RtpUdp } from './RtpUdp';
-import { getMountInfo } from './utils';
+import { getDebugger, getMountInfo } from './utils';
+
+const debug = getDebugger('Mount');
 
 export type RtspStream = {
   id: number; // Not a UUID, this is the streamId in the RTSP spec
@@ -34,7 +36,7 @@ export class Mount {
 
     this.sdp = sdpBody;
 
-    console.log(`Set up mount at ${path}`);
+    debug('Set up mount at path %s', path);
   }
 
   createStream (uri: string) {
@@ -46,7 +48,7 @@ export class Mount {
       throw new Error('No ports available to create the stream');
     }
 
-    console.log(`Setting up stream (${info.streamId}) on path ${this.path}`);
+    debug('Setting up stream %s on path %s', info.streamId, info.path);
 
     this.streams[info.streamId] = {
       clients: {},

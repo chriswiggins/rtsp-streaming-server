@@ -1,3 +1,4 @@
+import debug, { IDebugger } from 'debug';
 import { URL } from 'url';
 
 const mountRegex = /(\/\S+)(?:\/streamid=)(\d+)/;
@@ -25,4 +26,8 @@ export function getMountInfo (uri: string): MountInfo {
   }
 
   return mount;
+}
+
+export function getDebugger (name: string): IDebugger {
+  return debug(`rtsp-streaming-server:${name}`);
 }
