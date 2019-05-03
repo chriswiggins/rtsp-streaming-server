@@ -9,6 +9,7 @@ const debug = getDebugger('ClientServer');
 
 export interface ClientServerHooksConfig {
   authentication?: (username: string, password: string) => Promise<boolean>;
+  checkMount?: (req: RtspRequest) => Promise<boolean>;
 }
 
 /**
@@ -121,6 +122,17 @@ export class ClientServer {
         }
 
         this.authenticatedHeader = req.headers.authorization;
+      }
+    }
+
+    // Hook to set up the mount with a server if required before the client hits it
+    // It'll fall through to a 404 regardless
+    if (this.hooks.checkMount) {
+      const allowed = await this.hooks.checkMount(req);
+      if (!allowed) {
+        debug('%s:%s path not allowed by hook', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+        res.statusCode = 403;
+        return res.end();
       }
     }
 

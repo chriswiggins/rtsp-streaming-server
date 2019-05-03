@@ -8,6 +8,7 @@ const debug = getDebugger('PublishServer');
 
 export interface PublishServerHooksConfig {
   authentication?: (username: string, password: string) => Promise<boolean>;
+  checkMount?: (req: RtspRequest) => Promise<boolean>;
 }
 
 /**
@@ -118,7 +119,17 @@ export class PublishServer {
       sdpBody += buf.toString();
     });
 
-    req.on('end', () => {
+    req.on('end', async () => {
+      // Hook to check if this mount should exist or be allowed to be published
+      if (this.hooks.checkMount) {
+        const allowed = await this.hooks.checkMount(req);
+        if (!allowed) {
+          debug('%s:%s path not allowed by hook', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+          res.statusCode = 403;
+          return res.end();
+        }
+      }
+
       let mount = this.mounts.getMount(req.uri);
 
       // If the mount already exists, reject

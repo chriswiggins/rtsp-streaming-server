@@ -6,11 +6,13 @@ const server = new RtspServer({
 
   clientPort: 6554,
   clientServerHooks: {
-    authentication: authHook
+    authentication: authHook,
+    checkMount
   },
 
   publishServerHooks: {
-    authentication: authHook
+    authentication: authHook,
+    checkMount
   },
   serverPort: 5554
 });
@@ -25,6 +27,15 @@ async function run (): Promise<void> {
 
 async function authHook (username: string, password: string): Promise<boolean> {
   if (username === 'test' && password === 'test') return true;
+
+  return false;
+}
+
+async function checkMount (req: any): Promise<boolean> {
+  const url = new URL(req.uri);
+  if (url.pathname === '/test/1') {
+    return true;
+  }
 
   return false;
 }
