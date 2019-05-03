@@ -2,7 +2,7 @@
 
 Lightweight RTSP/RTP streaming media server written in Javascript.
 
-First things first, credit to @revmischa for their work on the perl-based server. This is basically a blatant rip-off of that but ported to Javascript. See the original here [revmischa/rtsp-server](https://github.com/revmischa/rtsp-server)
+First things first, credit to @revmischa for their work on the perl-based server. This is basically a blatant rip-off of that but ported to Javascript (and now typescript!). See the original here [revmischa/rtsp-server](https://github.com/revmischa/rtsp-server)
 
 Use this module to run an RTSP server in javascript. Common use case is for load balancing
 
@@ -54,11 +54,36 @@ Consume that stream from your favourite RTSP Client:
 * `clientPort`: port to listen to incoming RTSP requests from clients on
 * `rtpPortStart`: UDP port to start at for requests
 * `rtpPortCount`: Number of UDP Ports to use for requests. This needs to be a multiple of 2 as pairs of ports are assigned for RTP sessions. If this is set too low and it runs out then no more streams will work
+* `publishServerHooks`: object of hooks for the publishing server
+* `clientServerHooks`: object of hooks for the client server
 
+## Hooks
+
+Hooks are ways to allow / disallow connections to the server based on certain conditions. These need to be placed in the `publishServerHooks` or `clientServerHooks` objects
+
+Authentication is to authenticate users connecting. A failed authentication sends a 401.
+
+```
+async function authentication (username: string, password: string): Promise<boolean> {
+	if (username === 'test' && password === 'test') return true;
+	
+	return false;
+}
+```
+
+Check mount is to allow / deny publishing or consuming depending on the uri of the stream being requested:
+
+```
+async function checkMount (req: any): Promise<boolean> {
+  const url = new URL(req.uri);
+  if (url.pathname === '/test/1') {
+    return true;
+  }
+
+  return false;
+}
+```
 
 ## Improvements coming soon (or PR's welcome!)
 
-* Stability
-* Authorisation
 * RTP interleaved in RTSP (RTP over RTSP)
-* Hooks for events when streams are published / consumed
