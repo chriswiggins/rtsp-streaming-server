@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 
 import { Client } from './Client';
 import { Mounts } from './Mounts';
+import { PublishServerHooksConfig } from './PublishServer';
 import { RtpUdp } from './RtpUdp';
 import { getDebugger, getMountInfo } from './utils';
 
@@ -22,17 +23,21 @@ export class Mount {
   mounts: Mounts;
   path: string;
   streams: {
-    [streamId: string]: RtspStream
+    [streamId: number]: RtspStream // This is the RTSP streamId Number, not a UUID
   };
 
   sdp: string;
   range?: string;
 
-  constructor (mounts: Mounts, path: string, sdpBody: string) {
+  hooks?: PublishServerHooksConfig;
+
+  constructor (mounts: Mounts, path: string, sdpBody: string, hooks?: PublishServerHooksConfig) {
     this.id = uuid();
     this.mounts = mounts;
     this.path = path;
     this.streams = {};
+
+    this.hooks = hooks;
 
     this.sdp = sdpBody;
 
@@ -128,5 +133,19 @@ export class Mount {
     }
 
     return ports;
+  }
+
+  clientLeave (client: Client) {
+    delete this.streams[client.stream.id].clients[client.id];
+    let empty: boolean = true;
+    for (let stream in this.streams) {
+      if (Object.keys(this.streams[stream].clients).length > 0) {
+        empty = false;
+      }
+    }
+
+    if (empty === true && this.hooks && this.hooks.mountNowEmpty) {
+      this.hooks.mountNowEmpty(this);
+    }
   }
 }

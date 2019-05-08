@@ -1,4 +1,5 @@
 import { Mount } from './Mount';
+import { PublishServerHooksConfig } from './PublishServer';
 import { getDebugger, getMountInfo } from './utils';
 
 const debug = getDebugger('Mounts');
@@ -28,10 +29,10 @@ export class Mounts {
     return this.mounts[info.path];
   }
 
-  addMount (uri: string, sdp: string): Mount {
+  addMount (uri: string, sdp: string, hooks?: PublishServerHooksConfig): Mount {
     debug('Adding mount with path %s and SDP %O', uri, sdp);
     const info = getMountInfo(uri);
-    const mount = new Mount(this, info.path, sdp);
+    const mount = new Mount(this, info.path, sdp, hooks);
     this.mounts[info.path] = mount;
     return mount;
   }

@@ -1,6 +1,7 @@
 import { parse } from 'basic-auth';
 import { createServer, RtspRequest, RtspResponse, RtspServer } from 'rtsp-server';
 
+import { Mount } from './Mount';
 import { Mounts } from './Mounts';
 import { getDebugger } from './utils';
 
@@ -9,6 +10,7 @@ const debug = getDebugger('PublishServer');
 export interface PublishServerHooksConfig {
   authentication?: (username: string, password: string) => Promise<boolean>;
   checkMount?: (req: RtspRequest) => Promise<boolean>;
+  mountNowEmpty?: (mount: Mount) => Promise<void>;
 }
 
 /**
@@ -75,7 +77,7 @@ export class PublishServer {
    */
   optionsRequest (req: RtspRequest, res: RtspResponse) {
     debug('Options request from %s with headers %o', req.socket.remoteAddress, req.headers);
-    res.setHeader('DESCRIBE SETUP ANNOUNCE RECORD', 'OPTIONS');
+    res.setHeader('OPTIONS', 'DESCRIBE SETUP ANNOUNCE RECORD');
     return res.end();
   }
 
@@ -139,7 +141,7 @@ export class PublishServer {
         return res.end();
       }
 
-      mount = this.mounts.addMount(req.uri, sdpBody);
+      mount = this.mounts.addMount(req.uri, sdpBody, this.hooks);
       res.setHeader('Session', `${mount.id};timeout=30`);
       debug('%s:%s - Set session to %s', req.socket.remoteAddress, req.socket.remotePort, mount.id);
 

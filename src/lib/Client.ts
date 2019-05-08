@@ -2,6 +2,7 @@ import { createSocket, Socket } from 'dgram';
 import { RtspRequest } from 'rtsp-server';
 import { v4 as uuid } from 'uuid';
 
+import { ClientServerHooksConfig } from './ClientServer';
 import { Mount, RtspStream } from './Mount';
 import { Mounts } from './Mounts';
 import { getDebugger, getMountInfo, MountInfo } from './utils';
@@ -11,11 +12,9 @@ const debug = getDebugger('Client');
 const clientPortRegex = /(?:client_port=)(\d*)-(\d*)/;
 
 export class Client {
+  open: boolean;
   id: string;
-  info: MountInfo;
-  keepaliveTimeout?: NodeJS.Timeout;
   mount: Mount;
-  mounts: Mounts;
   stream: RtspStream;
 
   remoteAddress: string;
@@ -27,19 +26,18 @@ export class Client {
   rtpServerPort?: number;
   rtcpServerPort?: number;
 
-  constructor (mounts: Mounts, req: RtspRequest) {
-    this.mounts = mounts;
+  constructor (mount: Mount, req: RtspRequest) {
+    this.open = true;
 
     this.id = uuid();
-    this.info = getMountInfo(req.uri);
+    const info = getMountInfo(req.uri);
+    this.mount = mount;
 
-    const mount = this.mounts.mounts[this.info.path];
-    if (!mount) {
-      throw new Error('Mount does not exist');
+    if (this.mount.path !== info.path) {
+      throw new Error('Mount does not equal request provided');
     }
 
-    this.mount = mount;
-    this.stream = this.mount.streams[this.info.streamId];
+    this.stream = this.mount.streams[info.streamId];
 
     if (!req.socket.remoteAddress || !req.headers.transport) {
       throw new Error('No remote address found or transport header doesn\'t exist');
@@ -86,7 +84,7 @@ export class Client {
         }
 
         if (this.rtpServerPort) {
-          this.mounts.returnRtpPortToPool(this.rtpServerPort);
+          this.mount.mounts.returnRtpPortToPool(this.rtpServerPort);
         }
 
         this.setupServerPorts();
@@ -114,25 +112,21 @@ export class Client {
    */
   play (): void {
     this.stream.clients[this.id] = this;
-    this.keepalive();
   }
 
   /**
    *
    */
   async close (): Promise<void> {
-    delete this.stream.clients[this.id];
+    this.open = false;
+    this.mount.clientLeave(this);
 
     return new Promise((resolve, reject) => {
       this.rtpServer.close(() => {
         this.rtcpServer.close(() => {
 
           if (this.rtpServerPort) {
-            this.mounts.returnRtpPortToPool(this.rtpServerPort);
-          }
-
-          if (this.keepaliveTimeout) {
-            clearTimeout(this.keepaliveTimeout);
+            this.mount.mounts.returnRtpPortToPool(this.rtpServerPort);
           }
 
           return resolve();
@@ -146,7 +140,9 @@ export class Client {
    * @param buf
    */
   sendRtp (buf: Buffer) {
-    this.rtpServer.send(buf, this.remoteRtpPort, this.remoteAddress);
+    if (this.open === true) {
+      this.rtpServer.send(buf, this.remoteRtpPort, this.remoteAddress);
+    }
   }
 
   /**
@@ -154,22 +150,9 @@ export class Client {
    * @param buf
    */
   sendRtcp (buf: Buffer) {
-    this.rtcpServer.send(buf, this.remoteRtcpPort, this.remoteAddress);
-  }
-
-  keepalive (): void {
-    if (this.keepaliveTimeout) {
-      clearTimeout(this.keepaliveTimeout);
+    if (this.open === true) {
+      this.rtcpServer.send(buf, this.remoteRtcpPort, this.remoteAddress);
     }
-
-    this.keepaliveTimeout = setTimeout(async () => {
-      debug('%s client timeout, closing connection', this.id);
-      try {
-        await this.close();
-      } catch (e) {
-        // Ignore
-      }
-    }, 3e4); // 30 seconds
   }
 
   /**
@@ -197,7 +180,7 @@ export class Client {
   }
 
   private setupServerPorts (): void {
-    const rtpServerPort = this.mounts.getNextRtpPort();
+    const rtpServerPort = this.mount.mounts.getNextRtpPort();
     if (!rtpServerPort) {
       throw new Error('Unable to get next RTP Server Port');
     }

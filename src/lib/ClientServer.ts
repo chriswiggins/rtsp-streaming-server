@@ -2,6 +2,8 @@ import { parse } from 'basic-auth';
 import { createServer, RtspRequest, RtspResponse, RtspServer } from 'rtsp-server';
 
 import { Client } from './Client';
+import { ClientWrapper } from './ClientWrapper';
+import { Mount } from './Mount';
 import { Mounts } from './Mounts';
 import { getDebugger } from './utils';
 
@@ -10,6 +12,7 @@ const debug = getDebugger('ClientServer');
 export interface ClientServerHooksConfig {
   authentication?: (username: string, password: string) => Promise<boolean>;
   checkMount?: (req: RtspRequest) => Promise<boolean>;
+  clientClose?: (mount: Mount) => Promise<void>;
 }
 
 /**
@@ -18,10 +21,10 @@ export interface ClientServerHooksConfig {
 export class ClientServer {
   hooks: ClientServerHooksConfig;
 
-  private mounts: Mounts;
-  private rtspPort: number;
-  private server: RtspServer;
-  private clients: { [sessionId: string]: Client };
+  mounts: Mounts;
+  rtspPort: number;
+  server: RtspServer;
+  clients: { [sessionId: string]: ClientWrapper };
 
   private authenticatedHeader?: string;
 
@@ -75,9 +78,9 @@ export class ClientServer {
    * @param req
    * @param res
    */
-  optionsRequest (req: RtspRequest, res: RtspResponse): void {
+  async optionsRequest (req: RtspRequest, res: RtspResponse): Promise<void> {
     // Update the client timeout if they provide a session
-    if (req.headers.session && this.checkAuthenticated(req, res)) {
+    if (req.headers.session && await this.checkAuthenticated(req, res)) {
       const client = this.clients[req.headers.session];
       if (client) {
         client.keepalive();
@@ -87,7 +90,7 @@ export class ClientServer {
       }
     }
 
-    res.setHeader('DESCRIBE SETUP PLAY STOP', 'OPTIONS');
+    res.setHeader('OPTIONS', 'DESCRIBE SETUP PLAY STOP');
     return res.end();
   }
 
@@ -97,32 +100,8 @@ export class ClientServer {
    * @param res
    */
   async describeRequest (req: RtspRequest, res: RtspResponse): Promise<void> {
-    // Ask for authentication
-    if (this.hooks.authentication) {
-      if (!req.headers.authorization) {
-        debug('%s:%s - No authentication information (required), sending 401', req.socket.remoteAddress, req.socket.remotePort);
-        res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
-        res.statusCode = 401;
-        return res.end();
-      } else {
-        const result = parse(req.headers.authorization);
-        if (!result) {
-          debug('%s:%s - No authentication information (required), sending 401', req.socket.remoteAddress, req.socket.remotePort);
-          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
-          res.statusCode = 401;
-          return res.end();
-        }
-
-        const allowed = await this.hooks.authentication(result.name, result.pass);
-        if (!allowed) {
-          debug('%s:%s - No authentication information (hook returned false), sending 401', req.socket.remoteAddress, req.socket.remotePort);
-          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
-          res.statusCode = 401;
-          return res.end();
-        }
-
-        this.authenticatedHeader = req.headers.authorization;
-      }
+    if (!await this.checkAuthenticated(req, res)) {
+      return res.end();
     }
 
     // Hook to set up the mount with a server if required before the client hits it
@@ -157,8 +136,8 @@ export class ClientServer {
    * @param res
    */
   async setupRequest (req: RtspRequest, res: RtspResponse): Promise<void> {
-    if (!this.checkAuthenticated(req, res)) {
-      return;
+    if (!await this.checkAuthenticated(req, res)) {
+      return res.end();
     }
 
     // TCP not supported (yet ;-))
@@ -168,7 +147,19 @@ export class ClientServer {
       return res.end();
     }
 
-    const client = new Client(this.mounts, req);
+    let clientWrapper: ClientWrapper;
+
+    if (!req.headers.session) {
+      clientWrapper = new ClientWrapper(this, req);
+      this.clients[clientWrapper.id] = clientWrapper;
+    } else if (this.clients[req.headers.session]) {
+      clientWrapper = this.clients[req.headers.session];
+    } else {
+      return; // This theoretically never reaches, its just to fix TS checks
+    }
+
+    res.setHeader('Session', `${clientWrapper.id};timeout=30`);
+    const client = clientWrapper.addClient(req);
 
     try {
       await client.setup(req);
@@ -178,10 +169,8 @@ export class ClientServer {
       return res.end();
     }
 
-    this.clients[client.id] = client;
-
     res.setHeader('Transport', `${req.headers.transport};server_port=${client.rtpServerPort}-${client.rtcpServerPort}`);
-    res.setHeader('Session', `${client.id};timeout=30`);
+
     res.end();
   }
 
@@ -190,9 +179,9 @@ export class ClientServer {
    * @param req
    * @param res
    */
-  playRequest (req: RtspRequest, res: RtspResponse): void {
-    if (!this.checkAuthenticated(req, res)) {
-      return;
+  async playRequest (req: RtspRequest, res: RtspResponse): Promise<void> {
+    if (!await this.checkAuthenticated(req, res)) {
+      return res.end();
     }
 
     if (!req.headers.session || !this.clients[req.headers.session]) {
@@ -201,6 +190,7 @@ export class ClientServer {
       return res.end();
     }
 
+    debug('%s calling play', req.headers.session);
     const client = this.clients[req.headers.session];
     client.play();
 
@@ -216,9 +206,9 @@ export class ClientServer {
    * @param req
    * @param res
    */
-  teardownRequest (req: RtspRequest, res: RtspResponse): void {
-    if (!this.checkAuthenticated(req, res)) {
-      return;
+  async teardownRequest (req: RtspRequest, res: RtspResponse): Promise<void> {
+    if (!await this.checkAuthenticated(req, res)) {
+      return res.end();
     }
 
     if (!req.headers.session || !this.clients[req.headers.session]) {
@@ -236,15 +226,47 @@ export class ClientServer {
 
   /**
    *
+   * @param clientId
+   */
+  async clientGone (clientId: string): Promise<void> {
+    if (this.hooks.clientClose) {
+      await this.hooks.clientClose(this.clients[clientId].mount);
+    }
+
+    debug('ClientWrapper %s gone', clientId);
+
+    delete this.clients[clientId];
+  }
+
+  /**
+   *
    * @param req
    * @param res
    */
-  private checkAuthenticated (req: RtspRequest, res: RtspResponse): boolean {
-    if (this.hooks.authentication && this.authenticatedHeader) {
-      if (req.headers.authorization !== this.authenticatedHeader) {
+  private async checkAuthenticated (req: RtspRequest, res: RtspResponse): Promise<boolean> {
+    // Ask for authentication
+    if (this.hooks.authentication) {
+      if (!req.headers.authorization) {
+        debug('%s:%s - No authentication information (required), sending 401', req.socket.remoteAddress, req.socket.remotePort);
+        res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
         res.statusCode = 401;
-        res.end();
         return false;
+      } else {
+        const result = parse(req.headers.authorization);
+        if (!result) {
+          debug('%s:%s - No authentication information (required), sending 401', req.socket.remoteAddress, req.socket.remotePort);
+          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+          res.statusCode = 401;
+          return false;
+        }
+
+        const allowed = await this.hooks.authentication(result.name, result.pass);
+        if (!allowed) {
+          debug('%s:%s - No authentication information (hook returned false), sending 401', req.socket.remoteAddress, req.socket.remotePort);
+          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+          res.statusCode = 401;
+          return false;
+        }
       }
     }
 
