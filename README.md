@@ -74,7 +74,7 @@ async function authentication (username: string, password: string): Promise<bool
 Check mount is to allow / deny publishing or consuming depending on the uri of the stream being requested:
 
 ```
-async function checkMount (req: any): Promise<boolean> {
+async function checkMount (req: RtspRequest): Promise<boolean> {
   const url = new URL(req.uri);
   if (url.pathname === '/test/1') {
     return true;
@@ -84,6 +84,19 @@ async function checkMount (req: any): Promise<boolean> {
 }
 ```
 
+Client Close is to do some tidy up when a client leaves (i.e you might want to signal to your publisher it can stop the stream). This is only valid in `clientServerHooks`
+
+```
+async function clientClose (mount: Mount): Promise<void> {
+  console.log(`A client has disconnected from ${mount.path}`);
+}
+```
+
+## Typescript information
+
+If you're wanting to access any of the internal server components that reference the rtsp-server module, you'll have to add the types for this module `types/rtsp-server.d.ts` to your own project. These types are not in the server module itself.
+
 ## Improvements coming soon (or PR's welcome!)
 
 * RTP interleaved in RTSP (RTP over RTSP)
+* Check RTP is being received by the server and tear down the connection / mount if not

@@ -1,7 +1,6 @@
 import { parse } from 'basic-auth';
 import { createServer, RtspRequest, RtspResponse, RtspServer } from 'rtsp-server';
 
-import { Client } from './Client';
 import { ClientWrapper } from './ClientWrapper';
 import { Mount } from './Mount';
 import { Mounts } from './Mounts';
@@ -10,7 +9,7 @@ import { getDebugger } from './utils';
 const debug = getDebugger('ClientServer');
 
 export interface ClientServerHooksConfig {
-  authentication?: (username: string, password: string) => Promise<boolean>;
+  authentication?: (username: string, password: string, req: RtspRequest, res: RtspResponse) => Promise<boolean>;
   checkMount?: (req: RtspRequest) => Promise<boolean>;
   clientClose?: (mount: Mount) => Promise<void>;
 }
@@ -25,8 +24,6 @@ export class ClientServer {
   rtspPort: number;
   server: RtspServer;
   clients: { [sessionId: string]: ClientWrapper };
-
-  private authenticatedHeader?: string;
 
   /**
    *
@@ -44,6 +41,7 @@ export class ClientServer {
     };
 
     this.server = createServer((req: RtspRequest, res: RtspResponse) => {
+      debug('%s:%s request: %s', req.socket.remoteAddress, req.socket.remotePort, req.method);
       switch (req.method) {
         case 'DESCRIBE':
           return this.describeRequest(req, res);
@@ -252,6 +250,13 @@ export class ClientServer {
         res.statusCode = 401;
         return false;
       } else {
+        if (req.headers.session && this.clients[req.headers.session].authorizationHeader !== req.headers.authorization) {
+          debug('%s:%s - session header doesn\'t match the cached value, sending 401', req.socket.remoteAddress, req.socket.remotePort);
+          res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
+          res.statusCode = 401;
+          return false;
+        }
+
         const result = parse(req.headers.authorization);
         if (!result) {
           debug('%s:%s - No authentication information (required), sending 401', req.socket.remoteAddress, req.socket.remotePort);
@@ -260,7 +265,7 @@ export class ClientServer {
           return false;
         }
 
-        const allowed = await this.hooks.authentication(result.name, result.pass);
+        const allowed = await this.hooks.authentication(result.name, result.pass, req, res);
         if (!allowed) {
           debug('%s:%s - No authentication information (hook returned false), sending 401', req.socket.remoteAddress, req.socket.remotePort);
           res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');

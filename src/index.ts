@@ -1,7 +1,11 @@
 
+import { Client } from './lib/Client';
 import { ClientServer, ClientServerHooksConfig } from './lib/ClientServer';
+import { ClientWrapper } from './lib/ClientWrapper';
+import { Mount } from './lib/Mount';
 import { Mounts } from './lib/Mounts';
 import { PublishServer, PublishServerHooksConfig } from './lib/PublishServer';
+import { RtpUdp } from './lib/RtpUdp';
 
 export interface RtspServerConfig {
   clientPort: number;
@@ -38,3 +42,14 @@ export default class RtspServer {
     }
   }
 }
+
+export {
+  Client,
+  ClientServerHooksConfig,
+  ClientWrapper,
+  Mount,
+  Mounts,
+  PublishServer,
+  PublishServerHooksConfig,
+  RtpUdp
+};

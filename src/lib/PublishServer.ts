@@ -8,7 +8,7 @@ import { getDebugger } from './utils';
 const debug = getDebugger('PublishServer');
 
 export interface PublishServerHooksConfig {
-  authentication?: (username: string, password: string) => Promise<boolean>;
+  authentication?: (username: string, password: string, req: RtspRequest, res: RtspResponse) => Promise<boolean>;
   checkMount?: (req: RtspRequest) => Promise<boolean>;
   mountNowEmpty?: (mount: Mount) => Promise<void>;
 }
@@ -104,7 +104,7 @@ export class PublishServer {
           return res.end();
         }
 
-        const allowed = await this.hooks.authentication(result.name, result.pass);
+        const allowed = await this.hooks.authentication(result.name, result.pass, req, res);
         if (!allowed) {
           debug('%s:%s - Invalid authentication information (Hook returned false), sending 401', req.socket.remoteAddress, req.socket.remotePort);
           res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');

@@ -1,4 +1,4 @@
-import RtspServer from '../src';
+import RtspServer, { Mount } from '../src';
 
 const server = new RtspServer({
   rtpPortCount: 10000,
@@ -7,7 +7,8 @@ const server = new RtspServer({
   clientPort: 6554,
   clientServerHooks: {
     authentication: authHook,
-    checkMount
+    checkMount,
+    clientClose
   },
 
   publishServerHooks: {
@@ -38,6 +39,10 @@ async function checkMount (req: any): Promise<boolean> {
   }
 
   return false;
+}
+
+async function clientClose (mount: Mount): Promise<void> {
+  console.log(mount.streams);
 }
 
 run();

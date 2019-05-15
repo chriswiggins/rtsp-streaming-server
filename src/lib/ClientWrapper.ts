@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid';
 import { Client } from './Client';
 import { ClientServer } from './ClientServer';
 import { Mount } from './Mount';
-import { Mounts } from './Mounts';
 import { getDebugger, getMountInfo } from './utils';
 
 const debug = getDebugger('ClientWrapper');
@@ -19,6 +18,9 @@ export class ClientWrapper {
   };
 
   keepaliveTimeout?: NodeJS.Timeout;
+  context: any;
+
+  authorizationHeader: string;
 
   constructor (clientServer: ClientServer, req: RtspRequest) {
     this.id = uuid();
@@ -32,7 +34,10 @@ export class ClientWrapper {
       throw new Error('Mount does not exist');
     }
 
+    this.context = (req as any).context || {};
+
     this.mount = mount;
+    this.authorizationHeader = req.headers.authorization || '';
   }
 
   /**
