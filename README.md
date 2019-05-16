@@ -36,6 +36,11 @@ run();
 
 ```
 
+If you're using javascript, you'll have to require the default export:
+```javascript
+const RtspServer = require('rtsp-streaming-server').default;
+```
+
 Use an RTSP producer that supports ANNOUNCE (such as ffmpeg):
 
 `ffmpeg -i <your_input>.mp4 -c:v copy -f rtsp rtsp://127.0.0.1:5554/stream1`
