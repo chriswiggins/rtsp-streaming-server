@@ -250,7 +250,7 @@ export class ClientServer {
         res.statusCode = 401;
         return false;
       } else {
-        if (req.headers.session && this.clients[req.headers.session].authorizationHeader !== req.headers.authorization) {
+        if (req.headers.session && this.clients[req.headers.session] && this.clients[req.headers.session].authorizationHeader !== req.headers.authorization) {
           debug('%s:%s - session header doesn\'t match the cached value, sending 401', req.socket.remoteAddress, req.socket.remotePort);
           res.setHeader('WWW-Authenticate', 'Basic realm="rtsp"');
           res.statusCode = 401;
