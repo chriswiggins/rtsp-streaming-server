@@ -2,10 +2,8 @@ import { createSocket, Socket } from 'dgram';
 import { RtspRequest } from 'rtsp-server';
 import { v4 as uuid } from 'uuid';
 
-import { ClientServerHooksConfig } from './ClientServer';
 import { Mount, RtspStream } from './Mount';
-import { Mounts } from './Mounts';
-import { getDebugger, getMountInfo, MountInfo } from './utils';
+import { getDebugger, getMountInfo } from './utils';
 
 const debug = getDebugger('Client');
 
