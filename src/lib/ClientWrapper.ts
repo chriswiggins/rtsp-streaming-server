@@ -102,7 +102,7 @@ export class ClientWrapper {
       } catch (e) {
         // Ignore
       }
-    }, 3e4); // 30 seconds
+    }, 6e4); // 60 seconds (double the normal keepalive interval)
   }
 
 }

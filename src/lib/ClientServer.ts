@@ -183,7 +183,7 @@ export class ClientServer {
     }
 
     if (!req.headers.session || !this.clients[req.headers.session]) {
-      debug('%s:%s - session not valid, sending 454: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+      debug('%s:%s - session not valid (%s), sending 454: %o', req.socket.remoteAddress, req.socket.remotePort, req.headers.session, req.uri);
       res.statusCode = 454; // Session not valid
       return res.end();
     }
@@ -210,7 +210,7 @@ export class ClientServer {
     }
 
     if (!req.headers.session || !this.clients[req.headers.session]) {
-      debug('%s:%s - session not valid, sending 454: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+      debug('%s:%s - session not valid (%s), sending 454: %o', req.socket.remoteAddress, req.socket.remotePort, req.headers.session, req.uri);
       res.statusCode = 454;
       return res.end();
     }

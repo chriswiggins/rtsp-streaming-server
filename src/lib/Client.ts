@@ -119,17 +119,16 @@ export class Client {
     this.open = false;
     this.mount.clientLeave(this);
 
-    return new Promise((resolve, reject) => {
-      this.rtpServer.close(() => {
-        this.rtcpServer.close(() => {
+    return new Promise((resolve) => {
+      // Sometimes closing can throw if the dgram has already gone away. Just ignore it.
+      try { this.rtpServer.close(); } catch (e) { debug('Error closing rtpServer for client %o', e); }
+      try { this.rtcpServer.close(); } catch (e) { debug('Error closing rtcpServer for client %o', e); }
 
-          if (this.rtpServerPort) {
-            this.mount.mounts.returnRtpPortToPool(this.rtpServerPort);
-          }
+      if (this.rtpServerPort) {
+        this.mount.mounts.returnRtpPortToPool(this.rtpServerPort);
+      }
 
-          return resolve();
-        });
-      });
+      return resolve();
     });
   }
 
