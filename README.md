@@ -79,11 +79,16 @@ async function authentication (username: string, password: string): Promise<bool
 Check mount is to allow / deny publishing or consuming depending on the uri of the stream being requested:
 
 ```
-async function checkMount (req: RtspRequest): Promise<boolean> {
+async function checkMount (req: RtspRequest): Promise<boolean | number> {
   const url = new URL(req.uri);
   if (url.pathname === '/test/1') {
     return true;
   }
+
+	// If you want to reject the client side consuming with a specific code, return a number:
+	if (somereason) {
+		return 503; //Bad Gateway
+	}
 
   return false;
 }
