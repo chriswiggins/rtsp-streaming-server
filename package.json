@@ -1,6 +1,6 @@
 {
   "name": "rtsp-streaming-server",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "Lightweight RTSP/RTP streaming media server written in Javascript",
   "main": "build/index.js",
   "scripts": {
@@ -23,25 +23,25 @@
     "basic-auth": "^2.0.1",
     "debug": "^4.1.1",
     "rtsp-server": "^1.2.2",
-    "uuid": "^3.3.2",
+    "uuid": "^3.3.3",
     "winston": "^2.4.4"
   },
   "devDependencies": {
-    "@babel/cli": "^7.4.3",
-    "@babel/core": "^7.4.3",
-    "@babel/node": "^7.2.2",
-    "@babel/preset-env": "^7.4.3",
+    "@babel/cli": "^7.5.5",
+    "@babel/core": "^7.5.5",
+    "@babel/node": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
     "@babel/preset-typescript": "^7.3.3",
     "@types/basic-auth": "^1.1.2",
-    "@types/debug": "^4.1.4",
-    "@types/node": "^11.13.7",
-    "@types/uuid": "^3.4.4",
-    "lint-staged": "^8.1.5",
-    "nodemon": "^1.18.11",
-    "ts-node": "^8.1.0",
-    "tslint": "^5.16.0",
+    "@types/debug": "^4.1.5",
+    "@types/node": "^11.13.19",
+    "@types/uuid": "^3.4.5",
+    "lint-staged": "^8.2.1",
+    "nodemon": "^1.19.1",
+    "ts-node": "^8.3.0",
+    "tslint": "^5.19.0",
     "tslint-config-standard": "^8.0.1",
-    "typescript": "^3.4.4"
+    "typescript": "^3.5.3"
   },
   "engines": {
     "node": "^10.0.0"
