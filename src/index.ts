@@ -45,11 +45,13 @@ export default class RtspServer {
 
 export {
   Client,
+  ClientServer,
   ClientServerHooksConfig,
   ClientWrapper,
   Mount,
   Mounts,
   PublishServer,
   PublishServerHooksConfig,
-  RtpUdp
+  RtpUdp,
+  RtspServer
 };
