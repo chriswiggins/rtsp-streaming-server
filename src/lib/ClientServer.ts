@@ -145,7 +145,7 @@ export class ClientServer {
 
     // TCP not supported (yet ;-))
     if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
-      debug('%s:%s - we dont support tcp, sending 504: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+      debug('%s:%s - we dont support tcp, sending 461: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
       res.statusCode = 461;
       return res.end();
     }
