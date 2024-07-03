@@ -41,7 +41,7 @@ export class ClientServer {
     };
 
     this.server = createServer((req: RtspRequest, res: RtspResponse) => {
-      debug('%s:%s request: %s', req.socket.remoteAddress, req.socket.remotePort, req.method);
+      debug('%s:%s request: %s %s', req.socket.remoteAddress, req.socket.remotePort, req.method, req.uri);
       switch (req.method) {
         case 'DESCRIBE':
           return this.describeRequest(req, res);
@@ -145,8 +145,8 @@ export class ClientServer {
 
     // TCP not supported (yet ;-))
     if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
-      debug('%s:%s - we dont support tcp, sending 504: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
-      res.statusCode = 504;
+      debug('%s:%s - we dont support tcp, sending 461: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+      res.statusCode = 461;
       return res.end();
     }
 
