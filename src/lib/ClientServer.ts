@@ -5,6 +5,7 @@ import { ClientWrapper } from './ClientWrapper';
 import { Mount } from './Mount';
 import { Mounts } from './Mounts';
 import { getDebugger } from './utils';
+import { InterleavedTcpClient } from './Client';
 
 const debug = getDebugger('ClientServer');
 
@@ -143,9 +144,9 @@ export class ClientServer {
       return res.end();
     }
 
-    // TCP not supported (yet ;-))
-    if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
-      debug('%s:%s - we dont support tcp, sending 461: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+    // Non Interleaved TCP not supported (yet ;-))
+    if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1 && req.headers.transport.toLowerCase().indexOf('interleaved') == -1 ) {
+      debug('%s:%s - we dont support non-interleaved tcp, sending 461: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
       res.statusCode = 461;
       return res.end();
     }
@@ -172,7 +173,11 @@ export class ClientServer {
       return res.end();
     }
 
-    res.setHeader('Transport', `${req.headers.transport};server_port=${client.rtpServerPort}-${client.rtcpServerPort}`);
+    if( client instanceof InterleavedTcpClient) {
+      res.setHeader('Transport', `${req.headers.transport}`);
+    } else {
+      res.setHeader('Transport', `${req.headers.transport};server_port=${client.rtpServerPort}-${client.rtcpServerPort}`);
+    }
 
     res.end();
   }

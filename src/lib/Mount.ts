@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid';
 
-import { Client } from './Client';
+import { Client, InterleavedTcpClient } from './Client';
 import { Mounts } from './Mounts';
 import { PublishServerHooksConfig } from './PublishServer';
 import { RtpUdp } from './RtpUdp';
@@ -11,7 +11,7 @@ const debug = getDebugger('Mount');
 export type RtspStream = {
   id: number; // Not a UUID, this is the streamId in the RTSP spec
   mount: Mount;
-  clients: { [clientId: string]: Client };
+  clients: { [clientId: string]: Client|InterleavedTcpClient };
   listenerRtp?: RtpUdp;
   listenerRtcp?: RtpUdp;
   rtpStartPort: number;
@@ -135,7 +135,7 @@ export class Mount {
     return ports;
   }
 
-  clientLeave (client: Client) {
+  clientLeave (client: Client|InterleavedTcpClient) {
     delete this.streams[client.stream.id].clients[client.id];
     let empty: boolean = true;
     for (let stream in this.streams) {
