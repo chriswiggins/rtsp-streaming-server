@@ -50,5 +50,10 @@
     "type": "git",
     "url": "https://github.com/chriswiggins/rtsp-streaming-server.git"
   },
+  "overrides": {
+    "rtsp-server": {
+      "rtsp-stream": "npm:@slyoldfox/rtsp-stream@1.0.1"
+    }
+  },
   "types": "build/index.d.ts"
 }

@@ -1,7 +1,7 @@
 import { RtspRequest } from 'rtsp-server';
 import { v4 as uuid } from 'uuid';
 
-import { Client } from './Client';
+import { Client, InterleavedTcpClient } from './Client';
 import { ClientServer } from './ClientServer';
 import { Mount } from './Mount';
 import { getDebugger, getMountInfo } from './utils';
@@ -14,7 +14,7 @@ export class ClientWrapper {
   clientServer: ClientServer;
 
   clients: {
-    [clientId: string]: Client;
+    [clientId: string]: Client | InterleavedTcpClient;
   };
 
   keepaliveTimeout?: NodeJS.Timeout;
@@ -42,10 +42,16 @@ export class ClientWrapper {
 
   /**
    *
-   * @param mounts
    * @param req
    */
-  addClient (req: RtspRequest): Client {
+  addClient (req: RtspRequest): Client | InterleavedTcpClient {
+    if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1 && req.headers.transport.toLowerCase().indexOf('interleaved') > -1 ) {
+      const interleavedTcpClient = new InterleavedTcpClient(this.mount, req)
+      this.clients[interleavedTcpClient.id] = interleavedTcpClient;
+      debug('%s new tcp/interleaved client %s', this.id, interleavedTcpClient.id);
+      return interleavedTcpClient;
+    }
+
     const client = new Client(this.mount, req);
 
     // Some clients for whatever reason don't send RTSP keepalive requests

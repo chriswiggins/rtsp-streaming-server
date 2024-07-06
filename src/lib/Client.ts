@@ -1,4 +1,5 @@
 import { createSocket, Socket } from 'dgram';
+import { Socket as TcpSocket } from 'net';
 import { RtspRequest } from 'rtsp-server';
 import { v4 as uuid } from 'uuid';
 
@@ -8,6 +9,7 @@ import { getDebugger, getMountInfo } from './utils';
 const debug = getDebugger('Client');
 
 const clientPortRegex = /(?:client_port=)(\d*)-(\d*)/;
+const interleavedChannelRegex = /(?:interleaved=)(\d*)-(\d*)/;
 
 export class Client {
   open: boolean;
@@ -184,5 +186,88 @@ export class Client {
 
     this.rtpServerPort = rtpServerPort;
     this.rtcpServerPort = this.rtpServerPort + 1;
+  }
+}
+
+export class InterleavedTcpClient {
+  id: string;
+  stream: RtspStream;
+  mount: Mount;
+  socket: TcpSocket | undefined;
+  rtpChannel: number;
+  rtcpChannel: number;
+
+  constructor(mount: Mount, req: RtspRequest) {
+    this.id = uuid()
+    const info = getMountInfo(req.uri);
+    this.mount = mount;
+
+    if (this.mount.path !== info.path) {
+      throw new Error('Mount does not equal request provided');
+    }
+
+    this.stream = this.mount.streams[info.streamId];
+
+    if (!req.socket.remoteAddress || !req.headers.transport) {
+      throw new Error('No remote address found or transport header doesn\'t exist');
+    }
+
+    const channelMatch: RegExpMatchArray | null = req.headers.transport.match(interleavedChannelRegex);
+
+    if (!channelMatch) {
+      throw new Error('Unable to find client ports in transport header');
+    }
+
+    this.rtpChannel = parseInt(channelMatch[1], 10);
+    this.rtcpChannel = parseInt(channelMatch[2], 10);    
+  }
+
+  /**
+   *
+   * @param req
+   */
+  async setup (req: RtspRequest): Promise<void> {
+    this.socket = req.socket;
+  }
+
+  /**
+   *
+   */
+  play (): void {
+    this.stream.clients[this.id] = this;
+  }
+
+  /**
+   *
+   */
+  async close (): Promise<void> {
+    this.socket = undefined;
+    this.mount.clientLeave(this);
+  }
+
+  /**
+   *
+   * @param buf
+   */
+  sendRtp (buf: Buffer) {
+    this.writeEncodedInterleavedRTPPacket(this.rtpChannel, buf);
+  }
+
+  /**
+   *
+   * @param buf
+   */
+  sendRtcp (buf: Buffer) {
+    this.writeEncodedInterleavedRTPPacket(this.rtcpChannel, buf);
+  }  
+
+  private writeEncodedInterleavedRTPPacket(channel: number, rtpBuffer: Buffer) {
+    if( this.socket && !this.socket.destroyed) {
+      const interleavedHeader = Buffer.alloc(4);
+      interleavedHeader[0] = 0x24; // Magic byte for interleaved data
+      interleavedHeader[1] = channel; // Channel number
+      interleavedHeader.writeUInt16BE(rtpBuffer.length, 2); // Length of RTP data
+      this.socket.write( Buffer.concat( [ interleavedHeader, rtpBuffer ] ) )
+    }
   }
 }
