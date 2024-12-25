@@ -59,6 +59,19 @@ export class ClientServer {
           return res.end();
       }
     });
+
+    // Monitor stalled mounts
+    const checkMounts = () => {
+      Object.values(this.clients).forEach(client => {
+        const mount = this.mounts.getMount(client.mount.path);
+        if (!mount) {
+          debug('Mount %s no longer exists, closing client %s', client.mount.path, client.id);
+          client.close();
+          delete this.clients[client.id];
+        }
+      });
+    };
+    setInterval(checkMounts, 1000);
   }
 
   async start (): Promise<void> {
@@ -143,17 +156,16 @@ export class ClientServer {
       return res.end();
     }
 
-    // TCP not supported (yet ;-))
-    if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
-      debug('%s:%s - we dont support tcp, sending 461: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
-      res.statusCode = 461;
-      return res.end();
-    }
-
     let clientWrapper: ClientWrapper;
 
     if (!req.headers.session) {
-      clientWrapper = new ClientWrapper(this, req);
+      try {
+        clientWrapper = new ClientWrapper(this, req);
+      } catch (e) {
+        debug('%s:%s - Mount not found, sending 404: %o', req.socket.remoteAddress, req.socket.remotePort, req.uri);
+        res.statusCode = 404;
+        return res.end();
+      }
       this.clients[clientWrapper.id] = clientWrapper;
     } else if (this.clients[req.headers.session]) {
       clientWrapper = this.clients[req.headers.session];
@@ -172,7 +184,28 @@ export class ClientServer {
       return res.end();
     }
 
-    res.setHeader('Transport', `${req.headers.transport};server_port=${client.rtpServerPort}-${client.rtcpServerPort}`);
+    const transport = req.headers.transport?.toLowerCase() || '';
+    const isTcp = transport.indexOf('tcp') > -1;
+
+    if (isTcp) {
+      debug('Client using TCP transport: %s', transport);
+      const interleavedMatch = /interleaved=(\d+)-(\d+)/.exec(transport);
+      const rtpChannel = interleavedMatch ? parseInt(interleavedMatch[1], 10) : 0;
+      const rtcpChannel = interleavedMatch ? parseInt(interleavedMatch[2], 10) : 1;
+
+      // Set up TCP data handler for client responses
+      req.socket.on('data', (data: Buffer) => {
+        if (data[0] === 0x24) { // Check for $ character
+          const channel = data[1];
+          const length = data.readUInt16BE(2);
+          debug('Received TCP response from client on channel %d, length %d', channel, length);
+        }
+      });
+
+      res.setHeader('Transport', `RTP/AVP/TCP;interleaved=${rtpChannel}-${rtcpChannel}`);
+    } else {
+      res.setHeader('Transport', `${req.headers.transport};server_port=${client.rtpServerPort}-${client.rtcpServerPort}`);
+    }
 
     res.end();
   }
@@ -223,6 +256,7 @@ export class ClientServer {
     debug('%s:%s tearing down client', req.socket.remoteAddress, req.socket.remotePort);
     const client = this.clients[req.headers.session];
     client.close();
+    delete this.clients[req.headers.session];
 
     res.end();
   }

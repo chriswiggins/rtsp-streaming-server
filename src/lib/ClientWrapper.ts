@@ -48,13 +48,18 @@ export class ClientWrapper {
   addClient (req: RtspRequest): Client {
     const client = new Client(this.mount, req);
 
-    // Some clients for whatever reason don't send RTSP keepalive requests
-    // (Live555 streaming media as an example)
-    // RTP spec says compliant clients should be sending rtcp Receive Reports (RR) to show their "liveliness"
-    // So we support this as a keepalive too.
-    client.rtcpServer.on('message', (_buf: Buffer) => {
-      this.keepalive();
-    });
+    // For UDP clients, use RTCP Receive Reports as keepalive
+    if (client.transportType === 'udp') {
+      client.rtcpServer.on('message', (_buf: Buffer) => {
+        this.keepalive();
+      });
+    }
+    // For TCP clients, the RTSP connection itself acts as keepalive
+    else if (client.transportType === 'tcp') {
+      req.socket.on('data', () => {
+        this.keepalive();
+      });
+    }
 
     this.clients[client.id] = client;
     debug('%s new client %s', this.id, client.id);

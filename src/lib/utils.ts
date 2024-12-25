@@ -1,5 +1,4 @@
 import debug, { IDebugger } from 'debug';
-import { URL } from 'url';
 
 const mountRegex = /(\/\S+)(?:\/streamid=)(\d+)/;
 
@@ -9,22 +8,28 @@ export interface MountInfo {
 }
 
 export function getMountInfo (uri: string): MountInfo {
-  let urlObj = new URL(uri);
-
-  let mount = {
-    path: urlObj.pathname,
-    streamId: -1
+  // Default mount info
+  const mount: MountInfo = {
+    path: '',
+    streamId: 0
   };
 
-  if (urlObj.pathname.indexOf('streamid') > -1) {
-    const match = urlObj.pathname.match(mountRegex);
-
-    if (match) {
-      mount.path = match[1];
-      mount.streamId = parseInt(match[2], 10);
-    }
+  // Strip protocol and host if present
+  const pathMatch = uri.match(/(?:rtsp:\/\/[^\/]+)?(\/.+)/);
+  if (pathMatch) {
+    mount.path = pathMatch[1];
+  } else {
+    mount.path = uri;
   }
 
+  // Check for streamid in the path
+  const streamMatch = mount.path.match(mountRegex);
+  if (streamMatch) {
+    mount.path = streamMatch[1];
+    mount.streamId = parseInt(streamMatch[2], 10);
+  }
+
+  debug('Parsed mount info from %s: path=%s, streamId=%d', uri, mount.path, mount.streamId);
   return mount;
 }
 

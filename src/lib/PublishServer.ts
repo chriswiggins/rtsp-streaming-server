@@ -21,6 +21,7 @@ export class PublishServer {
   mounts: Mounts;
   rtspPort: number;
   server: RtspServer;
+  private activeSessions: Map<string, { mount: Mount; socket: Socket }>;
 
   authenticatedHeader?: string;
 
@@ -32,6 +33,7 @@ export class PublishServer {
   constructor (rtspPort: number, mounts: Mounts, hooks?: PublishServerHooksConfig) {
     this.rtspPort = rtspPort;
     this.mounts = mounts;
+    this.activeSessions = new Map();
 
     this.hooks = {
       ...hooks
@@ -142,6 +144,14 @@ export class PublishServer {
       }
 
       mount = this.mounts.addMount(req.uri, sdpBody, this.hooks);
+      
+      // Set up connection monitoring
+      req.socket.once('close', () => this.handlePublisherDisconnect(mount, req.socket));
+      req.socket.once('error', () => this.handlePublisherDisconnect(mount, req.socket));
+      
+      // Store the session
+      this.activeSessions.set(mount.id, { mount, socket: req.socket });
+
       res.setHeader('Session', `${mount.id};timeout=30`);
       debug('%s:%s - Set session to %s', req.socket.remoteAddress, req.socket.remotePort, mount.id);
 
@@ -167,16 +177,73 @@ export class PublishServer {
       return res.end();
     }
 
-    // TCP not supported (yet ;-))
-    if (req.headers.transport && req.headers.transport.toLowerCase().indexOf('tcp') > -1) {
-      debug('%s:%s - TCP not yet supported - sending 501', req.socket.remoteAddress, req.socket.remotePort, req.uri);
-      res.statusCode = 501; // Not Implemented
-      return res.end();
-    }
+    const transport = req.headers.transport?.toLowerCase() || '';
+    const isTcp = transport.indexOf('tcp') > -1;
+    
+    if (isTcp) {
+      debug('Publisher using TCP transport: %s', transport);
+      const interleavedMatch = /interleaved=(\d+)-(\d+)/.exec(transport);
+      const rtpChannel = interleavedMatch ? parseInt(interleavedMatch[1], 10) : 0;
+      const rtcpChannel = interleavedMatch ? parseInt(interleavedMatch[2], 10) : 1;
+      
+      let buffer = Buffer.alloc(0);
+      
+      // Set up TCP data handler
+      req.socket.on('data', (data: Buffer) => {
+        buffer = Buffer.concat([buffer, data]);
+        
+        while (buffer.length >= 4) {
+          if (buffer[0] !== 0x24) { // Not an interleaved packet
+            // Find next potential packet start
+            const nextDollar = buffer.indexOf(0x24, 1);
+            if (nextDollar === -1) {
+              buffer = Buffer.alloc(0);
+            } else {
+              buffer = buffer.slice(nextDollar);
+            }
+            continue;
+          }
 
-    const create = mount.createStream(req.uri);
-    res.setHeader('Transport', `${req.headers.transport};server_port=${create.rtpStartPort}-${create.rtpEndPort}`);
-    res.end();
+          const channel = buffer[1];
+          const length = buffer.readUInt16BE(2);
+          const totalLength = length + 4;
+
+          if (buffer.length < totalLength) {
+            // Wait for more data
+            break;
+          }
+
+          const payload = buffer.slice(4, totalLength);
+          buffer = buffer.slice(totalLength);
+          
+          debug('Received complete TCP packet on channel %d, length %d', channel, length);
+          
+          const stream = mount.streams[0]; // Assuming stream ID 0
+          if (stream) {
+            for (let id in stream.clients) {
+              const client = stream.clients[id];
+              if (client.transportType === 'tcp' && client.rtpTcp) {
+                if (channel === rtpChannel) {
+                  client.rtpTcp.sendInterleavedRtp(payload);
+                } else if (channel === rtcpChannel) {
+                  client.rtpTcp.sendInterleavedRtcp(payload);
+                }
+              }
+            }
+          }
+        }
+      });
+
+      res.setHeader('Transport', `RTP/AVP/TCP;interleaved=${rtpChannel}-${rtcpChannel}`);
+      const create = mount.createStream(req.uri);
+      res.end();
+    } else {
+      debug('Publisher using UDP transport: %s', transport);
+      const create = mount.createStream(req.uri);
+      debug('Created UDP stream with ports RTP: %d, RTCP: %d', create.rtpStartPort, create.rtpStartPort + 1);
+      res.setHeader('Transport', `${req.headers.transport};server_port=${create.rtpStartPort}-${create.rtpEndPort}`);
+      res.end();
+    }
   }
 
   /**
@@ -244,5 +311,39 @@ export class PublishServer {
     }
 
     return true;
+  }
+
+  protected handlePublisherDisconnect(mount: Mount, socket: Socket) {
+    debug('Publisher disconnected for mount %s', mount.path);
+    
+    // Clean up the mount
+    const ports = mount.close();
+    ports.forEach(port => {
+      this.mounts.returnRtpPortToPool(port);
+    });
+    
+    // Remove the mount from mounts map
+    if (this.mounts.getMount(mount.path)) {
+      debug('Removing mount %s from mounts map', mount.path);
+      this.mounts.deleteMount(mount.path);
+    }
+    
+    // Remove from active sessions and clean up socket
+    for (const [sessionId, session] of Array.from(this.activeSessions.entries())) {
+      if (session.socket === socket) {
+        debug('Removing session %s', sessionId);
+        this.activeSessions.delete(sessionId);
+        
+        try {
+          if (!socket.destroyed) {
+            socket.end();
+            socket.destroy();
+          }
+        } catch (err) {
+          debug('Error destroying publisher socket: %s', err.message);
+        }
+        break;
+      }
+    }
   }
 }
